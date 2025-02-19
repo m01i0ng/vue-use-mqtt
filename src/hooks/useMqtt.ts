@@ -2,7 +2,7 @@ import type { IClientOptions, ISubscriptionMap, MqttClient, Packet } from 'mqtt'
 import type { QoS } from 'mqtt-packet'
 import type { Ref } from 'vue'
 import mqtt from 'mqtt'
-import { onUnmounted, reactive, ref, watchEffect } from 'vue'
+import { onUnmounted, reactive, ref, shallowRef, watchEffect } from 'vue'
 
 type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 type SubscribeTopic = string | string[] | ISubscriptionMap
@@ -11,6 +11,7 @@ export type MessageHandler = (topic: string, message: Buffer, packet: Packet) =>
 interface MqttOptions extends IClientOptions {
   autoReconnect?: boolean
   reconnectInterval?: number
+  maxReconnectAttempts?: number
 }
 
 interface UseMqttReturn {
@@ -30,7 +31,7 @@ export function useMqtt(
   options: MqttOptions = {},
   onMessage: MessageHandler = () => {},
 ): UseMqttReturn {
-  const client = ref<MqttClient | null>(null)
+  const client = shallowRef<MqttClient | null>(null)
   const connectionState = ref<ConnectionState>('disconnected')
   const subscribeTopics = reactive<Set<string>>(new Set())
   const error = ref<Error | null>(null)
@@ -43,6 +44,7 @@ export function useMqtt(
     reconnectPeriod: 5000,
     connectTimeout: 30 * 1000,
     autoReconnect: true,
+    maxReconnectAttempts: 5,
     ...options,
   }
 
@@ -62,21 +64,37 @@ export function useMqtt(
     }
   }
 
+  let reconnectAttempts = 0
+
   const scheduleReconnect = () => {
-    if (reconnectTimer)
-      clearTimeout(reconnectTimer)
-    reconnectTimer = setTimeout(
-      () => connect(),
-      defaultOptions.reconnectInterval || 5000,
-    )
+    if (reconnectAttempts >= defaultOptions.maxReconnectAttempts!) {
+      error.value = new Error('Max reconnect attempts reached')
+      return
+    }
+
+    const delay = Math.min(5000 * 2 ** reconnectAttempts, 30000)
+    reconnectAttempts++
+
+    reconnectTimer = setTimeout(() => {
+      connect()
+      reconnectAttempts = 0
+    }, delay)
   }
 
   const connect = () => {
+    const cleanup = () => {
+      client.value?.removeAllListeners('connect')
+      client.value?.removeAllListeners('message')
+      client.value?.removeAllListeners('error')
+      client.value?.removeAllListeners('close')
+    }
+
     if (client.value?.connected)
       return
 
     isManualDisconnect.value = false
     connectionState.value = 'connecting'
+    cleanup()
     client.value = mqtt.connect(brokerUrl, defaultOptions)
 
     client.value.on('connect', handleConnect)
@@ -150,6 +168,7 @@ export function useMqtt(
     if (reconnectTimer)
       clearTimeout(reconnectTimer)
     client.value?.removeAllListeners()
+    client.value = null
   })
 
   return {
