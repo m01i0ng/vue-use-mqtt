@@ -7,12 +7,12 @@
   "author": "m01i0ng <maliang1066@gmail.com>",
   "license": "MIT",
   "funding": "https://github.com/sponsors/m01i0ng",
-  "homepage": "https://github.com/m01i0ng/vue-mqtt#readme",
+  "homepage": "https://github.com/m01i0ng/vue-use-mqtt#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/m01i0ng/vue-mqtt.git"
+    "url": "git+https://github.com/m01i0ng/vue-use-mqtt.git"
   },
-  "bugs": "https://github.com/m01i0ng/vue-mqtt/issues",
+  "bugs": "https://github.com/m01i0ng/vue-use-mqtt/issues",
   "keywords": [],
   "sideEffects": false,
   "exports": {
